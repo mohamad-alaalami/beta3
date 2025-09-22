@@ -5,7 +5,6 @@
 
 void display_grid(char** grid);
 int* update_grid(char** grid, int* capacities, char player);
-int is_valid(char** grid, int x, int y);
 int check_win(char** grid, int x, int y, char player);
 int check_win_vertical(char** grid, int x, int y, char player);
 int check_win_horizontal(char** grid, int x, int y, char player);

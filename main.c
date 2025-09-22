@@ -50,6 +50,7 @@ int check_win_horizontal(char** grid, int x, int y, char player)
 }
 
 
+<<<<<<< HEAD
 void start_game()
 {
     char** grid = malloc(ROWS * sizeof(char*));
@@ -114,3 +115,42 @@ void start_game()
     free(grid);
     free(column_capacity);
 }
+=======
+int check_win(char** grid, int x, int y, char player){
+    if (check_win_diagonals(grid, x, y, player)|| check_win_horizontal(grid, x, y, player)
+    ||check_win_vertical(grid, x, y, player)){
+        return 1;
+    }
+    return 0;
+}
+
+int* update_grid(char** grid, int* capacities, char player){
+
+    int choice;
+
+    int* returnpos = (int*)malloc(2*sizeof(int));
+    while(1){
+        printf("PLaYer %c, please choose a column: ", player);
+        scanf("%d", &choice);
+        if(choice>=0 && choice<=COLS){
+            
+            if(capacities[choice]<=6){
+                int row= ROWS-capacities[choice]-1;
+                grid[row][choice]=player;
+                capacities[choice]++;
+
+
+                //returnpos[0]= ROWS-capacities[choice]-1;
+                returnpos[0]=row;
+                returnpos[1]= choice;
+                return returnpos;
+            }
+        }
+        else{printf("invalid columns");}
+
+    }
+}
+
+
+
+>>>>>>> 9b435ec (updategrid and checkwin)
