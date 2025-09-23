@@ -1,4 +1,4 @@
-#ifndef define MAIN_H
+#ifndef MAIN_H
 #define MAIN_H
 #define ROWS 6
 #define COLS 7
