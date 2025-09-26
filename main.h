@@ -1,3 +1,4 @@
+/*Header file that contains the function prototypes*/
 #ifndef MAIN_H
 #define MAIN_H
 #define ROWS 6
