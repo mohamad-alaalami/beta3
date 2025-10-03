@@ -130,6 +130,7 @@ int* update_grid(char** grid, int* capacities, char player){
     while(1){
         printf("Player %c, please choose a column: ", player);
         if(scanf("%d", &choice) != 1){
+            fflush(stdout);
             printf("enter an integer.\n");
             int c;
             while ((c = getchar()) != '\n' && c != EOF);
