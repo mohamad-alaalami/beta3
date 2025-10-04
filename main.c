@@ -62,7 +62,7 @@ int check_win_diagonals(char **grid, int x, int y, char player){
 
     /*going to the lower leftmost availabe slot on the diagonal the player placed the
     char in*/ 
-	while(temp_x > 0 && temp_x < 5 && temp_y > 0 && temp_y < 6){
+	while(temp_x >= 0 && temp_x < 5 && temp_y > 0 && temp_y < 6){
 		temp_x++;
 		temp_y--;
 	}
@@ -88,9 +88,9 @@ int check_win_diagonals(char **grid, int x, int y, char player){
 	temp_x = x;
 	temp_y = y;
 
-    /*going to the upper rightmost availabe slot on the diagonal the player placed the
+    /*going to the lower rightmost availabe slot on the diagonal the player placed the
     char in*/ 
-	while(temp_x > 0 && temp_x < 5 && temp_y > 0 && temp_y < 6 ){
+	while(temp_x >= 0 && temp_x < 5 && temp_y > 0 && temp_y < 6 ){
 		temp_x++;
 		temp_y++;
 	}
