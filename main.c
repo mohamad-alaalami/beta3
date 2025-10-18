@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include "main.h"
 
 /*Function that displays the 6 by 7 board of the game*/
@@ -10,7 +11,7 @@ void display_grid(char **grid){
 		}
 		printf("\n");
 	}
-	printf("1  2  3  4  5  6  7\n");
+	printf("1  2  3  4  5  6  7\n\n");
 }
 
 /*Function that takes the position of the last placed char by the player and checks if that vertical contains 4 in a row*/
@@ -122,49 +123,22 @@ int check_win(char** grid, int x, int y, char player){
             check_win_vertical(grid, x, y, player));
 }
 
-/*function that takes as input the column choice of the user if it is a valid choice(in range and an integer) it checks the capacity of the column and places it in the lowest available slot then reprints the grid*/
-int* update_grid(char** grid, int* capacities, char player){
-    int choice;
-    
-    int* returnpos = (int*)malloc(2*sizeof(int));
-    while(1){
-        printf("Player %c, please choose a column: ", player);
-        if(scanf("%d", &choice) != 1){
-            fflush(stdout);
-            printf("enter an integer.\n");
-            int c;
-            while ((c = getchar()) != '\n' && c != EOF);
-            continue;
-        }
-        
-        if(choice > 0 && choice <= COLS){
-            
-            if(capacities[choice - 1] < ROWS){
-                int row = ROWS - capacities[choice - 1] - 1;
-                grid[row][choice - 1] = player;
-                capacities[choice - 1]++;
+int* update_grid(char** grid, int* capacities, char player, int bot){
+    if(bot == 0){return player_move(grid, capacities, player);}
 
+    else if(bot == 1){return easy_move(grid, capacities, player);}
 
-                //returnpos[0]= ROWS-capacities[choice]-1;
-                returnpos[0]=row;
-                returnpos[1]= choice - 1;
-                return returnpos;
-            }
+    else if(bot == 2){return medium_move(grid, capacities, player);}
 
-            else{
-                printf("column is full.\n");
-            }
-        }
+    else if(bot == 3){return hard_move(grid, capacities, player);}
 
-        else{
-            printf("invalid column.\n");
-        }
-
-    }
+    else {return NULL;}
 }
 
 /*function that simulates playing the game by calling all functions*/
 void start_game(){
+    srand(time(NULL));
+
     char** grid = malloc(ROWS * sizeof(char*));
     for(int i = 0; i < ROWS; i++){
         grid[i] = malloc(COLS * sizeof(char));
@@ -178,19 +152,81 @@ void start_game(){
     }
 
     int* column_capacity = calloc(COLS, sizeof(int));
-
-
-    printf("Welcome to Connect Four!\n");
-    printf("Player A: A\n");
-    printf("Player B: B\n");
-    display_grid(grid);
     
+    
+    printf("Welcome to Connect Four!\n");
+    
+    int bot;
+    int random;
+    char* A;
+    char* B;
+    {
+        char choice;
+        while(1)
+        {
+            printf("Do you want to play against a player or bot?(p/b): ");
+            scanf("%c", &choice);
+            if(choice == 'p' || choice == 'P')
+            {
+                A = "Player A";
+                B = "Player B";
+                bot = 0;
+                break;
+            }
+            
+            else if(choice == 'b' || choice == 'B')
+            {
+                char difficulty;
+                while(1)
+                {
+                    printf("Select difficultu]y: Easy/Medium/Hard: ");
+                    scanf(" %c", &difficulty);
+                    if(difficulty == 'e' || difficulty == 'E')
+                    {
+                        bot = 1;
+                        break;
+                    }
+                    
+                    else if(difficulty == 'm' || difficulty == 'M')
+                    {
+                    bot = 2;
+                        break;
+                    }
+                    else if(difficulty == 'h' || difficulty == 'H')
+                    {
+                    bot = 3;
+                        break;
+                    }
+
+                }
+                random = (rand() % 2);
+                if(random)
+                {
+                    A = "Player";
+                    B = "Bot";
+                }
+                
+                else
+                {
+                    A = "Bot";
+                    B = "Player";
+                }
+                break;
+            }
+        }
+    }
+
+    printf("%s: A\n",A);
+    printf("%s: B\n",B);
+    display_grid(grid);
 
     int counter = 0;
     int flag = 0;
     while(flag == 0 && counter < 42){
         char player = (char)(65 + (counter % 2));
-        int* position = update_grid(grid, column_capacity, player);
+        int* position;
+        if((random + counter) % 2 == 0){position = update_grid(grid, column_capacity, player, bot);}
+        else{position = update_grid(grid, column_capacity, player, 0);}
         display_grid(grid);
         if (check_win(grid, position[0], position[1], player) != 0){
             flag = (int)player;
@@ -200,11 +236,11 @@ void start_game(){
     }
 
     if(flag == 'A'){
-        printf("Player A wins!\n");
+        printf("%s wins!\n",A);
     }
 
     else if(flag == 'B'){
-        printf("Player B wins!\n");
+        printf("%s wins!\n",B);
     }
 
     else{
