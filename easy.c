@@ -15,7 +15,7 @@ int* easy_move(char** grid, int* capacities, char player){
     int choice;
     
     do{
-        choice = (rand() % 7) + 1;
+        choice = (rand() % 7);
     }while(capacities[choice - 1] > ROWS);
 
     printf("Bot choice: %d\n\n", choice);
