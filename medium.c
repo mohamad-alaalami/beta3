@@ -4,10 +4,9 @@
 #include "main.h"
 
 int* medium_move(char** grid, int* capacities, char player){
-
     int choice;
-    do
-    {
+    
+    do{
         choice = (rand() % 8) + 1;
 
     }while(capacities[choice - 1] < ROWS);
@@ -20,5 +19,4 @@ int* medium_move(char** grid, int* capacities, char player){
     returnpos[0]=row;
     returnpos[1]= choice - 1;
     return returnpos;
-
 }
