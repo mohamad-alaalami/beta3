@@ -9,7 +9,7 @@ int* easy_move(char** grid, int* capacities, char player){
     {
         choice = (rand() % 7) + 1;
 
-    }while(capacities[choice - 1] > ROWS);
+    }while(capacities[choice - 1] >= ROWS);
     printf("Bot choice: %d\n\n", choice);
     int row = ROWS - capacities[choice - 1] - 1;
     grid[row][choice - 1] = player;
