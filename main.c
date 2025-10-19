@@ -259,4 +259,4 @@ void start_game(){
 /*main function that calls the start_game function to run the game*/
 int main(){
     start_game();
-    }
+}

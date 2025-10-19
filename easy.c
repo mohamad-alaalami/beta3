@@ -3,7 +3,6 @@
 #include <time.h>
 #include "main.h"
 
-
 /*Easy Bot:
     Makes a random column choice
     Checks if a valid choice
@@ -16,8 +15,9 @@ int* easy_move(char** grid, int* capacities, char player){
     srand(time(NULL));
 
     do{
-        choice = rand() % 7;
-    }while(capacities[choice - 1] > ROWS);
+        choice = (rand() % 7) + 1;
+    }
+    while(capacities[choice - 1] < ROWS);
 
     printf("Bot choice: %d\n\n", choice);
     int row = ROWS - capacities[choice - 1] - 1;
