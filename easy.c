@@ -13,9 +13,10 @@ in choosing a column.
 */
 int* easy_move(char** grid, int* capacities, char player){
     int choice;
-    
+    srand(time(NULL));
+
     do{
-        choice = (rand() % 7);
+        choice = rand() % 7;
     }while(capacities[choice - 1] > ROWS);
 
     printf("Bot choice: %d\n\n", choice);
