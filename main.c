@@ -124,15 +124,25 @@ int check_win(char** grid, int x, int y, char player){
 }
 
 int* update_grid(char** grid, int* capacities, char player, int bot){
-    if(bot == 0){return player_move(grid, capacities, player);}
+    if(bot == 0){
+        return player_move(grid, capacities, player);
+    }
 
-    else if(bot == 1){return easy_move(grid, capacities, player);}
+    else if(bot == 1){
+        return easy_move(grid, capacities, player);
+    }
 
-    else if(bot == 2){return medium_move(grid, capacities, player);}
+    else if(bot == 2){
+        return medium_move(grid, capacities, player);
+    }
 
-    else if(bot == 3){return hard_move(grid, capacities, player);}
+    else if(bot == 3){
+        return hard_move(grid, capacities, player);
+    }
 
-    else {return NULL;}
+    else{
+        return NULL;
+    }
 }
 
 /*function that simulates playing the game by calling all functions*/
