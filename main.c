@@ -172,52 +172,43 @@ void start_game(){
     char* B;
     {
         char choice;
-        while(1)
-        {
+        while(1){
             printf("Do you want to play against a player or bot?(p/b): ");
             scanf("%c", &choice);
-            if(choice == 'p' || choice == 'P')
-            {
+            if(choice == 'p' || choice == 'P'){
                 A = "Player A";
                 B = "Player B";
                 bot = 0;
                 break;
             }
             
-            else if(choice == 'b' || choice == 'B')
-            {
+            else if(choice == 'b' || choice == 'B'){
                 char difficulty;
-                while(1)
-                {
-                    printf("Select difficultu]y: Easy/Medium/Hard: ");
+                while(1){
+                    printf("Select difficultuly: E(Easy)/M(Medium)/H(Hard): ");
                     scanf(" %c", &difficulty);
-                    if(difficulty == 'e' || difficulty == 'E')
-                    {
+                    if(difficulty == 'e' || difficulty == 'E'){
                         bot = 1;
                         break;
                     }
                     
-                    else if(difficulty == 'm' || difficulty == 'M')
-                    {
+                    else if(difficulty == 'm' || difficulty == 'M'){
                     bot = 2;
                         break;
                     }
-                    else if(difficulty == 'h' || difficulty == 'H')
-                    {
+                    else if(difficulty == 'h' || difficulty == 'H'){
                     bot = 3;
                         break;
                     }
-
                 }
+
                 random = (rand() % 2);
-                if(random)
-                {
+                if(random){
                     A = "Player";
                     B = "Bot";
                 }
                 
-                else
-                {
+                else{
                     A = "Bot";
                     B = "Player";
                 }
