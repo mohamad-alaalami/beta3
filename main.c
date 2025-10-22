@@ -147,7 +147,53 @@ int* update_grid(char** grid, int* capacities, char player, int bot){
         return NULL;
     }
 }
+void game_starter(char** A, char** B,int* random, int* bot){
+        char choice;
+        while(1){
+            printf("Do you want to play against a player or bot?(p/b): ");
+            scanf(" %c", &choice);
+            if(choice == 'p' || choice == 'P'){
+                *A = "Player A";
+                *B = "Player B";
+                *bot = 0;
+                break;
+            }
+            
+            else if(choice == 'b' || choice == 'B'){
+                char difficulty;
+                while(1){
+                    printf("Select difficultuly: E(Easy)/M(Medium)/H(Hard): ");
+                    scanf(" %c", &difficulty);
+                    if(difficulty == 'e' || difficulty == 'E'){
+                        *bot = 1;
+                        break;
+                    }
+                    
+                    else if(difficulty == 'm' || difficulty == 'M'){
+                    *bot = 2;
+                        break;
+                    }
+                    else if(difficulty == 'h' || difficulty == 'H'){
+                    *bot = 3;
+                        break;
+                    }
+                }
 
+                *random = (rand() % 2);
+                if(*random){
+                    *A = "Player";
+                    *B = "Bot";
+                }
+                
+                else{
+                    *A = "Bot";
+                    *B = "Player";
+                }
+                break;
+            }
+
+        }
+    }
 /*Function that simulates playing the game by calling all functions*/
 void start_game(){
     srand(time(NULL));
@@ -173,52 +219,7 @@ void start_game(){
     int random;
     char* A;
     char* B;
-    {
-        char choice;
-        while(1){
-            printf("Do you want to play against a player or bot?(p/b): ");
-            scanf("%c", &choice);
-            if(choice == 'p' || choice == 'P'){
-                A = "Player A";
-                B = "Player B";
-                bot = 0;
-                break;
-            }
-            
-            else if(choice == 'b' || choice == 'B'){
-                char difficulty;
-                while(1){
-                    printf("Select difficultuly: E(Easy)/M(Medium)/H(Hard): ");
-                    scanf(" %c", &difficulty);
-                    if(difficulty == 'e' || difficulty == 'E'){
-                        bot = 1;
-                        break;
-                    }
-                    
-                    else if(difficulty == 'm' || difficulty == 'M'){
-                    bot = 2;
-                        break;
-                    }
-                    else if(difficulty == 'h' || difficulty == 'H'){
-                    bot = 3;
-                        break;
-                    }
-                }
-
-                random = (rand() % 2);
-                if(random){
-                    A = "Player";
-                    B = "Bot";
-                }
-                
-                else{
-                    A = "Bot";
-                    B = "Player";
-                }
-                break;
-            }
-        }
-    }
+    game_starter(&A,&B,&random,&bot);
 
     printf("%s: A\n",A);
     printf("%s: B\n",B);
