@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include "main.h"
+
+//Template to implement in later sprint
 int* hard_move(char** grid, int* capacities, char player){
     int choice;
 

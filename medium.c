@@ -3,6 +3,7 @@
 #include <time.h>
 #include "main.h"
 
+//Template to implement in later sprint
 int* medium_move(char** grid, int* capacities, char player){
     int choice;
     

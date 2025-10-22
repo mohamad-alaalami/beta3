@@ -4,11 +4,8 @@
 #include "main.h"
 
 /*Easy Bot:
-    Makes a random column choice
-    Checks if a valid choice
-    Plays it
-The Logic behind implementing this bot is that it is completely random and has no basis
-in choosing a column.
+    Makes a random column choice as long as it is valid, then plays it immediately.
+The Logic behind implementing this bot is that it is completely random and has no strategy or reasoning behind its column selection.
 */
 int* easy_move(char** grid, int* capacities, char player){
     int choice;

@@ -56,19 +56,19 @@ int check_win_horizontal(char** grid, int x, int y, char player){
 
 /*Function that takes the position of the last placed char by the player and checks if either diagonal contains 4 in a row*/
 int check_win_diagonals(char **grid, int x, int y, char player){
-    //to not modify the position to be used later
+    //To save position to be used later
 	int temp_x = x;
 	int temp_y = y;
 	int counter;
 
-    /*going to the lower leftmost availabe slot on the diagonal the player placed the
+    /*Going to the lower leftmost availabe slot on the diagonal the player placed the
     char in*/ 
 	while(temp_x >= 0 && temp_x < 5 && temp_y > 0 && temp_y < 6){
 		temp_x++;
 		temp_y--;
 	}
 
-    /*setting counter to 0 and looping over the diagonal(going up then right) and incrementing counter if we view a char same as the one the player placed*/
+    /*Setting counter to 0 and looping over the diagonal(going up then right) and incrementing counter if we view a char same as the one the player placed*/
 	counter = 0;
 	while(temp_x >= 0 && temp_x <= 5 && temp_y >= 0 && temp_y <= 6 ){
 		
@@ -85,18 +85,18 @@ int check_win_diagonals(char **grid, int x, int y, char player){
 		temp_y++;
 	}
 
-    //resetting the temp variables to the initial position to use again 
+    //Resetting the temp variables to the initial position
 	temp_x = x;
 	temp_y = y;
 
-    /*going to the lower rightmost availabe slot on the diagonal the player placed the
+    /*Going to the lower rightmost availabe slot on the diagonal the player placed the
     char in*/ 
 	while(temp_x >= 0 && temp_x < 5 && temp_y > 0 && temp_y < 6 ){
 		temp_x++;
 		temp_y++;
 	}
     
-    /*setting counter to 0 and looping over the diagonal(going down then left) and incrementing counter if we view a char same as the one the player placed*/
+    /*Setting counter to 0 and looping over the diagonal(going down then left) and incrementing counter if we view a char same as the one the player placed*/
 	counter = 0;
 	while(temp_x >= 0 && temp_x <= 5 && temp_y >= 0 && temp_y <= 6){
 		
@@ -116,13 +116,16 @@ int check_win_diagonals(char **grid, int x, int y, char player){
 	return 0;
 }
 
-/*function that calls the horizontal,vertical and diagonal win check to see if the player has won the game or it should continue on*/
+/*Function that calls the horizontal,vertical and diagonal win check to see if the player has won the game or it should continue on*/
 int check_win(char** grid, int x, int y, char player){
     return (check_win_diagonals(grid, x, y, player) || 
             check_win_horizontal(grid, x, y, player) || 
             check_win_vertical(grid, x, y, player));
 }
 
+/*
+Function that updates the grid depending on the player/bot performing the move
+*/
 int* update_grid(char** grid, int* capacities, char player, int bot){
     if(bot == 0){
         return player_move(grid, capacities, player);
@@ -145,7 +148,7 @@ int* update_grid(char** grid, int* capacities, char player, int bot){
     }
 }
 
-/*function that simulates playing the game by calling all functions*/
+/*Function that simulates playing the game by calling all functions*/
 void start_game(){
     srand(time(NULL));
 
@@ -226,8 +229,12 @@ void start_game(){
     while(flag == 0 && counter < 42){
         char player = (char)(65 + (counter % 2));
         int* position;
-        if((random + counter) % 2 == 0){position = update_grid(grid, column_capacity, player, bot);}
-        else{position = update_grid(grid, column_capacity, player, 0);}
+        if((random + counter) % 2 == 0){
+            position = update_grid(grid, column_capacity, player, bot);
+        }
+        else{
+            position = update_grid(grid, column_capacity, player, 0);
+        }
         display_grid(grid);
         if (check_win(grid, position[0], position[1], player) != 0){
             flag = (int)player;

@@ -28,8 +28,7 @@ int* player_move(char** grid, int* capacities, char player){
                 returnpos[0]=row;
                 returnpos[1]= choice - 1;
                 return returnpos;
-        }
-
+            }
             else{
                 printf("column is full.\n");
             }
