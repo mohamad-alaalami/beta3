@@ -17,5 +17,7 @@ int* easy_move(char** grid, int* capacities, char player);
 int* medium_move(char** grid, int* capacities, char player);
 int* hard_move(char** grid, int* capacities, char player);
 
+int* check_possible_Vwin(char** grid, int* capacities, char bot);
+
 void start_game();
 #endif
