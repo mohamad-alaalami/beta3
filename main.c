@@ -170,11 +170,11 @@ void game_starter(char** A, char** B,int* random, int* bot){
                     }
                     
                     else if(difficulty == 'm' || difficulty == 'M'){
-                    *bot = 2;
+                        *bot = 2;
                         break;
                     }
                     else if(difficulty == 'h' || difficulty == 'H'){
-                    *bot = 3;
+                        *bot = 3;
                         break;
                     }
                 }
@@ -191,9 +191,9 @@ void game_starter(char** A, char** B,int* random, int* bot){
                 }
                 break;
             }
-
         }
     }
+    
 /*Function that simulates playing the game by calling all functions*/
 void start_game(){
     srand(time(NULL));
