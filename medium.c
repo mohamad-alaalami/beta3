@@ -10,9 +10,13 @@ else it simulates again to see if it can block the player from winning;
 if it can not win or block then it makes a random move.
 */
 int* medium_move(char** grid, int* capacities, char player){
-    //check_possible_Vwin(grid, capacities, player);
-    for(int col = 0; col < COLS - 1; col++){
+    //check_possible_win(grid, capacities, player);
+    for(int col = 0; col < COLS; col++){
         int row = ROWS - capacities[col] - 1;
+        if(row < 0){
+            continue;
+        }
+
         grid[row][col] = player;
         if(check_win(grid, row, col, player)){
             int* returnpos = malloc(2*sizeof(int));
@@ -32,8 +36,13 @@ int* medium_move(char** grid, int* capacities, char player){
     else{
         other = 'A';
     }
-    for(int col = 0; col < COLS - 1; col++){
+
+    for(int col = 0; col < COLS; col++){
         int row = ROWS - capacities[col] - 1;
+        if(row < 0){
+            continue;
+        }
+
         grid[row][col] = other;
         if(check_win(grid, row, col, other)){
             int* returnpos = malloc(2*sizeof(int));
