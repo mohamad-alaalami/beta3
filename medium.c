@@ -23,6 +23,7 @@ int* medium_move(char** grid, int* capacities, char player){
             returnpos[0] = row;
             returnpos[1] = col;
             capacities[col]++;
+            printf("Bot choice: %d\n\n", col + 1);
             return returnpos;
         }
         else{
@@ -50,6 +51,7 @@ int* medium_move(char** grid, int* capacities, char player){
             returnpos[1] = col;
             capacities[col]++;
             grid[row][col] = player;
+            printf("Bot choice: %d\n\n", col + 1);
             return returnpos;
         }
         else{
