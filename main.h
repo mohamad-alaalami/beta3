@@ -11,13 +11,13 @@ int check_win_vertical(char** grid, int x, int y, char player);
 int check_win_horizontal(char** grid, int x, int y, char player);
 int check_win_diagonals(char** grid, int x, int y, char player);
 
-int* update_grid(char** grid, int* capacities, char player, int bot);
+int* update_grid(char** grid, int* capacities, int counter, char player, int bot);
 int* player_move(char** grid, int* capacities, char player);
 int* easy_move(char** grid, int* capacities, char player);
 int* medium_move(char** grid, int* capacities, char player);
-int* hard_move(char** grid, int* capacities, char player);
+int* hard_move(char** grid, int* capacities, int counter, char player);
 
-int* check_possible_Vwin(char** grid, int* capacities, char bot);
-
+int* find_best_move(char** grid, int* capacities, int counter, char player);
+int minimax(char** tempGrid, int* capacitites, int isMaximizing, int counter, int player, int opponent, int r, int c, char bot);
 void start_game();
 #endif

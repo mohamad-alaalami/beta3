@@ -126,7 +126,7 @@ int check_win(char** grid, int x, int y, char player){
 /*
 Function that updates the grid depending on the player/bot performing the move
 */
-int* update_grid(char** grid, int* capacities, char player, int bot){
+int* update_grid(char** grid, int* capacities, int counter, char player, int bot){
     if(bot == 0){
         return player_move(grid, capacities, player);
     }
@@ -140,7 +140,7 @@ int* update_grid(char** grid, int* capacities, char player, int bot){
     }
 
     else if(bot == 3){
-        return hard_move(grid, capacities, player);
+        return hard_move(grid, capacities, counter, player);
     }
 
     else{
@@ -231,10 +231,10 @@ void start_game(){
         char player = (char)(65 + (counter % 2));
         int* position;
         if((random + counter) % 2 == 0){
-            position = update_grid(grid, column_capacity, player, bot);
+            position = update_grid(grid, column_capacity, counter, player, bot);
         }
         else{
-            position = update_grid(grid, column_capacity, player, 0);
+            position = update_grid(grid, column_capacity, counter, player, 0);
         }
         display_grid(grid);
         if (check_win(grid, position[0], position[1], player) != 0){
