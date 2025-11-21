@@ -3,111 +3,169 @@
 #include <time.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
+#include <pthread.h>
 #include "main.h"
 
 static const int move_order[7] = {3, 2, 4, 1, 5, 0, 6};
+static const int MAX_SEARCH_DEPTH = 14; // Upper bound for iterative deepening
 
-#define TT_SIZE 524287
+pthread_mutex_t tt_mutex = PTHREAD_MUTEX_INITIALIZER;
+TTEntry g_tt[TT_SIZE];
 
-typedef struct {
-    U64 playerA;
-    U64 playerB;
-    char current;
-    int score;
-    bool valid;
-} TTEntry;
-
-static TTEntry transposition_table[TT_SIZE];
-
-static void tt_reset(void) {
-    memset(transposition_table, 0, sizeof(transposition_table));
-}
-
-static unsigned tt_index(const Position* pos, char current) {
+static uint64_t tt_hash(const Position* pos, char current) {
     uint64_t hash = pos->playerA * 11400714819323198485ull;
     hash ^= pos->playerB * 14029467366897019727ull;
-    hash ^= (uint64_t)current;
+    hash ^= ((uint64_t)current * 1609587929392839161ull);
+    return hash;
+}
+
+static unsigned tt_index(uint64_t hash) {
     return (unsigned)(hash % TT_SIZE);
 }
 
-static bool tt_lookup(const Position* pos, char current, int* score) {
-    unsigned idx = tt_index(pos, current);
-    TTEntry* entry = &transposition_table[idx];
-    if(entry->valid && entry->playerA == pos->playerA && entry->playerB == pos->playerB && entry->current == current) {
-        *score = entry->score;
+static bool tt_lookup(const Position* pos, char current, int depth, int alpha, int beta, int* score) {
+    uint64_t hash = tt_hash(pos, current);
+    unsigned idx = tt_index(hash);
+    TTEntry entry = g_tt[idx];
+
+    if (!entry.valid || entry.hash != hash || entry.depth < depth) {
+        return false;
+    }
+
+    if (entry.type == TT_NODE_PV) {
+        *score = entry.score;
         return true;
     }
+
+    if (entry.type == TT_NODE_CUT && entry.score >= beta) {
+        *score = entry.score;
+        return true;
+    }
+
+    if (entry.type == TT_NODE_ALL && entry.score <= alpha) {
+        *score = entry.score;
+        return true;
+    }
+
     return false;
 }
 
-static void tt_store(const Position* pos, char current, int score) {
-    unsigned idx = tt_index(pos, current);
-    TTEntry* entry = &transposition_table[idx];
-    entry->valid = true;
-    entry->playerA = pos->playerA;
-    entry->playerB = pos->playerB;
-    entry->current = current;
-    entry->score = score;
+static void tt_store(const Position* pos, char current, int depth, int score, TTNodeType type) {
+    uint64_t hash = tt_hash(pos, current);
+    unsigned idx = tt_index(hash);
+
+    pthread_mutex_lock(&tt_mutex);
+    TTEntry* entry = &g_tt[idx];
+    if (!entry->valid || entry->hash != hash || depth >= entry->depth) {
+        entry->hash = hash;
+        entry->score = score;
+        entry->depth = depth;
+        entry->type = type;
+        entry->valid = true;
+    }
+    pthread_mutex_unlock(&tt_mutex);
 }
 
+
+
+
 int* hard_move(char** grid, int* capacities, int counter, char player){
-    int* returnpos = malloc(2*sizeof(int));
+    int* move = malloc(2 * sizeof(int));
+    if (!move) {
+        return NULL;
+    }
+
     if(counter == 0){
         int choice = COLS / 2;
-        printf("Bot choice: %d\n\n", choice + 1);
         int row = ROWS - capacities[choice] - 1;
         grid[row][choice] = player;
         capacities[choice]++;
 
-        returnpos[0]=row;
-        returnpos[1]= choice;
-        return returnpos;
+        move[0] = row;
+        move[1] = choice;
+        printf("Bot choice: %d (depth 1)\n\n", choice + 1);
+        return move;
     }
-    if(counter <= 5){return player_move(grid, capacities, player);}
 
-    tt_reset();
     Position pos = create_bitboard(grid, capacities);
-    returnpos = find_best_move(&pos, counter, player);
-    grid[returnpos[0]][returnpos[1]] = player;
-    capacities[returnpos[1]]++; 
+    int* best = find_best_move(&pos, counter, player);
+    if (!best || best[1] == -1) {
+        free(best);
+        free(move);
+        return easy_move(grid, capacities, player);
+    }
 
-    return returnpos;
+    grid[best[0]][best[1]] = player;
+    capacities[best[1]]++;
+
+    free(move);
+    return best;
 }
 
 
-int negamax(Position* pos, int counter, char current, int alpha, int beta){
+
+
+void* thread_worker(void* arg) {
+    ThreadArgs* args = (ThreadArgs*)arg;
+
+    // Make local copy of position so threads don’t fight
+    Position local = args->pos;
+
+    // Apply the move for this thread’s column
+    play_move(&local, args->col, args->player);
+
+    char opponent = (args->player == 'A') ? 'B' : 'A';
+    int remainingDepth = args->depth - 1;
+    if (remainingDepth < 0) {
+        remainingDepth = 0;
+    }
+
+    // Do negamax
+    args->score = -negamax(&local, args->counter + 1, remainingDepth, opponent, -1000, 1000);
+
+    return NULL;
+}
+
+
+int negamax(Position* pos, int counter, int depth, char current, int alpha, int beta){
     int cached;
-    if(tt_lookup(pos, current, &cached)){
+    if(tt_lookup(pos, current, depth, alpha, beta, &cached)){
         return cached;
     }
 
     char opponent = (current == 'A') ? 'B' : 'A';
 
     if(has_won(current == 'A' ? pos->playerB : pos->playerA)){
-        tt_store(pos, current, -1);
+        tt_store(pos, current, depth, -1, TT_NODE_PV);
         return -1;
     }
 
     if(counter >= ROWS * COLS){
-        tt_store(pos, current, 0);
+        tt_store(pos, current, depth, 0, TT_NODE_PV);
         return 0;
     }
 
+    if (depth <= 0) {
+        tt_store(pos, current, depth, 0, TT_NODE_PV);
+        return 0;
+    }
+
+    int originalAlpha = alpha;
     int bestScore = -1000;
+    bool moveFound = false;
 
     for (int k = 0; k < COLS; k++) {
         int col = move_order[k];
-        int row = ROWS - pos->heights[col] - 1;
-        if(row < 0){
+        int row = pos->heights[col];
+        if(row >= ROWS){
             continue;
         }
 
+        moveFound = true;
         play_move(pos, col, current);
 
-        int score = -negamax(pos, counter + 1, opponent, -beta, -alpha);
+        int score = -negamax(pos, counter + 1, depth - 1, opponent, -beta, -alpha);
 
-    
         undo_move(pos, col, current);
 
         if(score > bestScore){
@@ -121,48 +179,151 @@ int negamax(Position* pos, int counter, char current, int alpha, int beta){
         }
     }
 
-    if(bestScore == -1000){
-        tt_store(pos, current, 0);
+    if(!moveFound){
+        tt_store(pos, current, depth, 0, TT_NODE_PV);
         return 0;
     }
 
-    tt_store(pos, current, bestScore);
+    TTNodeType nodeType;
+    if(bestScore <= originalAlpha){
+        nodeType = TT_NODE_ALL;
+    } else if(bestScore >= beta){
+        nodeType = TT_NODE_CUT;
+    } else {
+        nodeType = TT_NODE_PV;
+    }
+
+    tt_store(pos, current, depth, bestScore, nodeType);
     return bestScore;
 }
 
 
 int* find_best_move(Position* pos, int counter, char player){
-    char opponent = (player == 'A') ? 'B' : 'A';
-    int bestScore = -1000;
-    int* returnpos = (int*)malloc(2 * sizeof(int));
-    returnpos[0] = -1;
-    returnpos[1] = -1;
-    int col;
+    int remainingMoves = ROWS * COLS - counter;
+    if (remainingMoves <= 0) {
+        int* fallback = malloc(sizeof(int) * 2);
+        fallback[0] = -1;
+        fallback[1] = -1;
+        return fallback;
+    }
+
+    int maxDepth;
+    if (counter > 13) {
+        maxDepth = remainingMoves;
+    } else {
+        maxDepth = remainingMoves < MAX_SEARCH_DEPTH ? remainingMoves : MAX_SEARCH_DEPTH;
+    }
+    if (maxDepth < 1) {
+        maxDepth = 1;
+    }
+
+    int root_moves[COLS];
+    int root_count = 0;
     for (int k = 0; k < COLS; k++) {
         int col = move_order[k];
-        int row = ROWS - pos->heights[col] - 1;
-        if(row < 0){
+        if (pos->heights[col] >= ROWS) {
             continue;
         }
+        root_moves[root_count++] = col;
+    }
 
-        play_move(pos, col, player);
+    if (root_count == 0) {
+        int* fallback = malloc(sizeof(int) * 2);
+        fallback[0] = -1;
+        fallback[1] = -1;
+        return fallback;
+    }
 
-        int score = -negamax(pos, counter + 1, opponent, -1000, 1000);
-        
-        undo_move(pos, col, player);
+    int bestCol = root_moves[0];
+    int bestScore = -1000;
+    int searchedDepth = 0;
+    int pv_move = -1;
 
-        if(score > bestScore){
-            bestScore = score;
-            returnpos[0] = row;
-            returnpos[1] = col;
+    for (int depth = 1; depth <= maxDepth; depth++) {
+        if (pv_move != -1) {
+            int pv_index = -1;
+            for (int i = 0; i < root_count; i++) {
+                if (root_moves[i] == pv_move) {
+                    pv_index = i;
+                    break;
+                }
+            }
+            if (pv_index > 0) {
+                int pv_col = root_moves[pv_index];
+                for (int j = pv_index; j > 0; j--) {
+                    root_moves[j] = root_moves[j - 1];
+                }
+                root_moves[0] = pv_col;
+            }
+        }
+
+        pthread_t threads[COLS];
+        ThreadArgs tasks[COLS];
+        bool thread_started[COLS] = {false};
+
+        for (int i = 0; i < root_count; i++) {
+            int col = root_moves[i];
+            ThreadArgs* task = &tasks[i];
+            task->pos = *pos;
+            task->col = col;
+            task->counter = counter;
+            task->depth = depth;
+            task->player = player;
+            task->score = -1000;
+
+            if (pthread_create(&threads[i], NULL, thread_worker, task) == 0) {
+                thread_started[i] = true;
+            } else {
+                thread_started[i] = false;
+                thread_worker(task);
+            }
+        }
+
+        for (int i = 0; i < root_count; i++) {
+            if (thread_started[i]) {
+                pthread_join(threads[i], NULL);
+            }
+        }
+
+        int depthBestScore = -1000;
+        int depthBestCol = -1;
+
+        for (int i = 0; i < root_count; i++) {
+            int score = tasks[i].score;
+            if (score > depthBestScore) {
+                depthBestScore = score;
+                depthBestCol = tasks[i].col;
+            }
+        }
+
+        if (depthBestCol != -1) {
+            bestCol = depthBestCol;
+            bestScore = depthBestScore;
+            searchedDepth = depth;
+            pv_move = depthBestCol;
+        }
+
+        if (bestScore == 1) {
+            break;
         }
     }
 
-    if(returnpos[1] != -1){
-        printf("Bot choice: %d\n\n", returnpos[1] + 1);
+    if (bestCol == -1) {
+        int* fallback = malloc(sizeof(int) * 2);
+        fallback[0] = -1;
+        fallback[1] = -1;
+        return fallback;
     }
-    return returnpos;
+
+    int row = ROWS - pos->heights[bestCol] - 1;
+    int* result = malloc(sizeof(int) * 2);
+    result[0] = row;
+    result[1] = bestCol;
+
+    printf("Bot choice: %d (depth %d)\n\n", bestCol + 1, searchedDepth);
+    return result;
 }
+
 
 
 

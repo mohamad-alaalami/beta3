@@ -151,7 +151,11 @@ void game_starter(char** A, char** B,int* random, int* bot){
         char choice;
         while(1){
             printf("Do you want to play against a player or bot?(p/b): ");
-            scanf(" %c", &choice);
+            if (scanf(" %c", &choice) != 1) {
+                int ch;
+                while ((ch = getchar()) != '\n' && ch != EOF) {}
+                continue;
+            }
             if(choice == 'p' || choice == 'P'){
                 *A = "Player A";
                 *B = "Player B";
@@ -163,7 +167,11 @@ void game_starter(char** A, char** B,int* random, int* bot){
                 char difficulty;
                 while(1){
                     printf("Select difficultuly: E(Easy)/M(Medium)/H(Hard): ");
-                    scanf(" %c", &difficulty);
+                    if (scanf(" %c", &difficulty) != 1) {
+                        int ch;
+                        while ((ch = getchar()) != '\n' && ch != EOF) {}
+                        continue;
+                    }
                     if(difficulty == 'e' || difficulty == 'E'){
                         *bot = 1;
                         break;
