@@ -8,9 +8,188 @@
 
 static const int move_order[7] = {3, 2, 4, 1, 5, 0, 6};
 static const int MAX_SEARCH_DEPTH = 14; // Upper bound for iterative deepening
+static const int WIN_SCORE = 100000;
+static const int INF_SCORE = 200000;
+static const double MOVE_TIME_LIMIT = 15.0;
+
+static struct timespec g_move_start;
+static volatile bool g_time_over = false;
+
+// Precomputed center column bits (col = 3) to keep initializer constant
+static const U64 CENTER_MASK =
+    (1ULL << 21) | (1ULL << 22) | (1ULL << 23) |
+    (1ULL << 24) | (1ULL << 25) | (1ULL << 26);
+
+static U64 g_win_masks[69];
+static bool g_win_masks_ready = false;
 
 pthread_mutex_t tt_mutex = PTHREAD_MUTEX_INITIALIZER;
 TTEntry g_tt[TT_SIZE];
+
+static inline int bit_popcount(U64 v) {
+    return __builtin_popcountll(v);
+}
+
+static inline double elapsed_seconds(void) {
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    double sec = (double)(now.tv_sec - g_move_start.tv_sec);
+    double nsec = (double)(now.tv_nsec - g_move_start.tv_nsec) / 1e9;
+    return sec + nsec;
+}
+
+static inline void start_timer(void) {
+    clock_gettime(CLOCK_MONOTONIC, &g_move_start);
+    g_time_over = false;
+}
+
+static inline bool time_is_up(void) {
+    if (g_time_over) {
+        return true;
+    }
+    if (elapsed_seconds() >= MOVE_TIME_LIMIT) {
+        g_time_over = true;
+        return true;
+    }
+    return false;
+}
+
+static inline void init_win_masks(void) {
+    if (g_win_masks_ready) return;
+    int idx = 0;
+    for (int r = 0; r < ROWS; r++) {              // horizontal
+        for (int c = 0; c <= COLS - 4; c++) {
+            U64 mask = 0;
+            for (int k = 0; k < 4; k++) {
+                mask |= 1ULL << bit_index(r, c + k);
+            }
+            g_win_masks[idx++] = mask;
+        }
+    }
+    for (int c = 0; c < COLS; c++) {              // vertical
+        for (int r = 0; r <= ROWS - 4; r++) {
+            U64 mask = 0;
+            for (int k = 0; k < 4; k++) {
+                mask |= 1ULL << bit_index(r + k, c);
+            }
+            g_win_masks[idx++] = mask;
+        }
+    }
+    for (int r = 0; r <= ROWS - 4; r++) {         // diag down-right
+        for (int c = 0; c <= COLS - 4; c++) {
+            U64 mask = 0;
+            for (int k = 0; k < 4; k++) {
+                mask |= 1ULL << bit_index(r + k, c + k);
+            }
+            g_win_masks[idx++] = mask;
+        }
+    }
+    for (int r = 0; r <= ROWS - 4; r++) {         // diag down-left
+        for (int c = 3; c < COLS; c++) {
+            U64 mask = 0;
+            for (int k = 0; k < 4; k++) {
+                mask |= 1ULL << bit_index(r + k, c - k);
+            }
+            g_win_masks[idx++] = mask;
+        }
+    }
+    g_win_masks_ready = true;
+}
+
+static inline U64 playable_mask(const Position* pos) {
+    U64 mask = 0;
+    for (int c = 0; c < COLS; c++) {
+        int h = pos->heights[c];
+        if (h < ROWS) {
+            mask |= 1ULL << bit_index(h, c);
+        }
+    }
+    return mask;
+}
+
+static inline U64 winning_spots(U64 me, U64 opp) {
+    init_win_masks();
+    U64 wins = 0;
+    U64 all = me | opp;
+    for (int i = 0; i < 69; i++) {
+        U64 mask = g_win_masks[i];
+        if (mask & opp) continue;
+        U64 empty = mask & ~all;
+        if (empty && ((empty & (empty - 1ULL)) == 0ULL)) {
+            wins |= empty;
+        }
+    }
+    return wins;
+}
+
+static inline int count_threats(U64 me, U64 opp) {
+    init_win_masks();
+    int threes = 0;
+    int twos = 0;
+    for (int i = 0; i < 69; i++) {
+        U64 mask = g_win_masks[i];
+        if (mask & opp) continue;
+        int cnt = bit_popcount(me & mask);
+        if (cnt == 3) {
+            threes++;
+        } else if (cnt == 2) {
+            twos++;
+        }
+    }
+    return threes * 6 + twos * 2;
+}
+
+static inline int count_double_threats(const Position* pos, U64 me, U64 opp, U64 playable) {
+    int count = 0;
+    for (int c = 0; c < COLS; c++) {
+        int h = pos->heights[c];
+        if (h >= ROWS) continue;
+        U64 move = 1ULL << bit_index(h, c);
+        U64 new_me = me | move;
+        U64 new_opp = opp;
+        U64 new_playable = playable & ~move;
+        if (h + 1 < ROWS) {
+            new_playable |= 1ULL << bit_index(h + 1, c);
+        }
+        U64 threats = winning_spots(new_me, new_opp) & new_playable;
+        if (bit_popcount(threats) >= 2) {
+            count++;
+        }
+    }
+    return count;
+}
+
+static inline int evaluate_position(const Position* pos, char current, int counter) {
+    U64 me = (current == 'A') ? pos->playerA : pos->playerB;
+    U64 opp = (current == 'A') ? pos->playerB : pos->playerA;
+
+    if (has_won(me)) return WIN_SCORE - counter;
+    if (has_won(opp)) return -WIN_SCORE + counter;
+
+    U64 playable = playable_mask(pos);
+    U64 my_wins = winning_spots(me, opp);
+    U64 opp_wins = winning_spots(opp, me);
+
+    int score = 0;
+    score += bit_popcount(my_wins & playable) * 80;
+    score -= bit_popcount(opp_wins & playable) * 95;
+
+    int center = bit_popcount(me & CENTER_MASK) - bit_popcount(opp & CENTER_MASK);
+    score += center * 10;
+
+    int parity = ((ROWS * COLS - counter) & 1) ? 6 : -6;
+    score += parity;
+
+    score += count_threats(me, opp);
+    score -= count_threats(opp, me);
+
+    int my_double = count_double_threats(pos, me, opp, playable);
+    int opp_double = count_double_threats(pos, opp, me, playable);
+    score += my_double * 120;
+    score -= opp_double * 140;
+
+    return score;
+}
 
 static uint64_t tt_hash(const Position* pos, char current) {
     uint64_t hash = pos->playerA * 11400714819323198485ull;
@@ -68,6 +247,37 @@ static void tt_store(const Position* pos, char current, int depth, int score, TT
 
 
 
+static inline int heuristic_move_score(const Position* pos, char current, int col, int counter) {
+    int row = pos->heights[col];
+    if (row >= ROWS) return -INF_SCORE;
+
+    U64 me = (current == 'A') ? pos->playerA : pos->playerB;
+    U64 opp = (current == 'A') ? pos->playerB : pos->playerA;
+    U64 playable = playable_mask(pos);
+    U64 move = 1ULL << bit_index(row, col);
+
+    if (has_won(me | move)) {
+        return WIN_SCORE;
+    }
+
+    U64 opp_immediate = winning_spots(opp, me) & playable;
+    if (opp_immediate & move) {
+        return WIN_SCORE / 2;
+    }
+
+    U64 new_me = me | move;
+    U64 new_opp = opp;
+    U64 new_playable = (playable & ~move);
+    if (row + 1 < ROWS) {
+        new_playable |= 1ULL << bit_index(row + 1, col);
+    }
+
+    int double_threats = bit_popcount(winning_spots(new_me, new_opp) & new_playable);
+    int center_bias = (col == 3) ? 6 : (col == 2 || col == 4) ? 4 : 2;
+    int base_eval = center_bias * 2 + double_threats * 40;
+
+    return base_eval + evaluate_position(pos, current, counter);
+}
 
 int* hard_move(char** grid, int* capacities, int counter, char player){
     int* move = malloc(2 * sizeof(int));
@@ -121,13 +331,17 @@ void* thread_worker(void* arg) {
     }
 
     // Do negamax
-    args->score = -negamax(&local, args->counter + 1, remainingDepth, opponent, -1000, 1000);
+    args->score = -negamax(&local, args->counter + 1, remainingDepth, opponent, -INF_SCORE, INF_SCORE);
 
     return NULL;
 }
 
 
 int negamax(Position* pos, int counter, int depth, char current, int alpha, int beta){
+    if (time_is_up()) {
+        return evaluate_position(pos, current, counter);
+    }
+
     int cached;
     if(tt_lookup(pos, current, depth, alpha, beta, &cached)){
         return cached;
@@ -136,8 +350,9 @@ int negamax(Position* pos, int counter, int depth, char current, int alpha, int 
     char opponent = (current == 'A') ? 'B' : 'A';
 
     if(has_won(current == 'A' ? pos->playerB : pos->playerA)){
-        tt_store(pos, current, depth, -1, TT_NODE_PV);
-        return -1;
+        int loss = -WIN_SCORE + counter;
+        tt_store(pos, current, depth, loss, TT_NODE_PV);
+        return loss;
     }
 
     if(counter >= ROWS * COLS){
@@ -146,20 +361,44 @@ int negamax(Position* pos, int counter, int depth, char current, int alpha, int 
     }
 
     if (depth <= 0) {
-        tt_store(pos, current, depth, 0, TT_NODE_PV);
-        return 0;
+        int eval = evaluate_position(pos, current, counter);
+        tt_store(pos, current, depth, eval, TT_NODE_PV);
+        return eval;
     }
 
     int originalAlpha = alpha;
-    int bestScore = -1000;
+    int bestScore = -INF_SCORE;
     bool moveFound = false;
+
+    int cols[COLS];
+    int scores[COLS];
+    int moveCount = 0;
 
     for (int k = 0; k < COLS; k++) {
         int col = move_order[k];
         int row = pos->heights[col];
-        if(row >= ROWS){
-            continue;
+        if (row >= ROWS) continue;
+        cols[moveCount] = col;
+        scores[moveCount] = heuristic_move_score(pos, current, col, counter);
+        moveCount++;
+    }
+
+    for (int i = 1; i < moveCount; i++) { // insertion sort desc by heuristic
+        int c = cols[i];
+        int s = scores[i];
+        int j = i - 1;
+        while (j >= 0 && scores[j] < s) {
+            cols[j + 1] = cols[j];
+            scores[j + 1] = scores[j];
+            j--;
         }
+        cols[j + 1] = c;
+        scores[j + 1] = s;
+    }
+
+    for (int idx = 0; idx < moveCount; idx++) {
+        int col = cols[idx];
+        int row = pos->heights[col];
 
         moveFound = true;
         play_move(pos, col, current);
@@ -175,6 +414,9 @@ int negamax(Position* pos, int counter, int depth, char current, int alpha, int 
             alpha = bestScore;
         }
         if(alpha >= beta){
+            break;
+        }
+        if (time_is_up()) {
             break;
         }
     }
@@ -207,6 +449,8 @@ int* find_best_move(Position* pos, int counter, char player){
         return fallback;
     }
 
+    start_timer();
+
     int maxDepth;
     if (counter > 13) {
         maxDepth = remainingMoves;
@@ -234,12 +478,32 @@ int* find_best_move(Position* pos, int counter, char player){
         return fallback;
     }
 
+    int root_scores[COLS];
+    for (int i = 0; i < root_count; i++) {
+        root_scores[i] = heuristic_move_score(pos, player, root_moves[i], counter);
+    }
+    for (int i = 1; i < root_count; i++) { // sort desc
+        int col = root_moves[i];
+        int sc = root_scores[i];
+        int j = i - 1;
+        while (j >= 0 && root_scores[j] < sc) {
+            root_moves[j + 1] = root_moves[j];
+            root_scores[j + 1] = root_scores[j];
+            j--;
+        }
+        root_moves[j + 1] = col;
+        root_scores[j + 1] = sc;
+    }
+
     int bestCol = root_moves[0];
-    int bestScore = -1000;
+    int bestScore = -INF_SCORE;
     int searchedDepth = 0;
     int pv_move = -1;
 
     for (int depth = 1; depth <= maxDepth; depth++) {
+        if (time_is_up()) {
+            break;
+        }
         if (pv_move != -1) {
             int pv_index = -1;
             for (int i = 0; i < root_count; i++) {
@@ -269,7 +533,7 @@ int* find_best_move(Position* pos, int counter, char player){
             task->counter = counter;
             task->depth = depth;
             task->player = player;
-            task->score = -1000;
+            task->score = -INF_SCORE;
 
             if (pthread_create(&threads[i], NULL, thread_worker, task) == 0) {
                 thread_started[i] = true;
@@ -285,7 +549,7 @@ int* find_best_move(Position* pos, int counter, char player){
             }
         }
 
-        int depthBestScore = -1000;
+        int depthBestScore = -INF_SCORE;
         int depthBestCol = -1;
 
         for (int i = 0; i < root_count; i++) {
@@ -303,7 +567,7 @@ int* find_best_move(Position* pos, int counter, char player){
             pv_move = depthBestCol;
         }
 
-        if (bestScore == 1) {
+        if (bestScore >= WIN_SCORE / 2 || time_is_up()) {
             break;
         }
     }
