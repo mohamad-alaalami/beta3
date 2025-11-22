@@ -58,6 +58,5 @@ int* medium_move(char** grid, int* capacities, char player){
             grid[row][col] = '.';
         }
     }
-    easy_move(grid, capacities, player);
+    return easy_move(grid, capacities, player);
 }
-

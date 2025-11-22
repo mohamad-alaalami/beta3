@@ -56,6 +56,7 @@ int* medium_move(char** grid, int* capacities, char player);
 int* hard_move(char** grid, int* capacities, int counter, char player);
 int negamax(Position* pos, int counter, int depth, char current, int alpha, int beta);
 int* find_best_move(Position* pos, int counter, char player);
+int get_hard_move(U64 playerA, U64 playerB, char player, int moveCount);
 
 void game_starter(char** A, char** B,int* random, int* bot);
 void start_game();
@@ -65,4 +66,8 @@ int bit_index(int row, int col);
 int has_won(U64 bitboard);
 void undo_move(Position *pos, int col, char current);
 void play_move(Position *pos, int col, char current);
+
+// Pascal Pons book key3 hashing helpers
+uint64_t book_key3(U64 playerA, U64 playerB, char playerToMove);
+void book_partialKey3(uint64_t *key, int col, U64 current_position, U64 mask);
 #endif

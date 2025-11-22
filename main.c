@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <time.h>
 #include "main.h"
+#include "opening_book.h"
+
+OpeningBook BOOK;
 
 /*Function that displays the 6 by 7 board of the game*/
 void display_grid(char **grid){
@@ -38,6 +41,7 @@ int check_win_vertical(char** grid, int x, int y, char player){
 
 /*Function that takes the position of the last placed char by the player and checks if that horizontal contains 4 in a row*/
 int check_win_horizontal(char** grid, int x, int y, char player){
+    (void)y;
     int counter = 0;
     for(int i = 0; i < COLS; i++){
         if(grid[x][i] == player){
@@ -274,5 +278,6 @@ void start_game(){
 
 /*main function that calls the start_game function to run the game*/
 int main(){
+    opening_book_load("opening_book_flat.bin", &BOOK);
     start_game();
 }

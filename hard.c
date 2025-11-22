@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 199309L
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -5,6 +6,9 @@
 #include <stdint.h>
 #include <pthread.h>
 #include "main.h"
+#include "opening_book.h"
+
+extern OpeningBook BOOK;
 
 static const int move_order[7] = {3, 2, 4, 1, 5, 0, 6};
 static const int MAX_SEARCH_DEPTH = 14; // Upper bound for iterative deepening
@@ -279,37 +283,70 @@ static inline int heuristic_move_score(const Position* pos, char current, int co
     return base_eval + evaluate_position(pos, current, counter);
 }
 
+static int column_height_from_mask(U64 mask, int col) {
+    for (int row = 0; row < ROWS; row++) {
+        if ((mask & (1ULL << bit_index(row, col))) == 0) {
+            return row;
+        }
+    }
+    return ROWS;
+}
+
+int get_hard_move(U64 playerA, U64 playerB, char player, int moveCount) {
+    int book_move = opening_book_best_move(playerA, playerB, player, moveCount, &BOOK);
+    if (book_move >= 0) {
+        printf("[BOOK HIT] move = %d\n", book_move);
+        return book_move;
+    }
+
+    Position pos;
+    pos.playerA = playerA;
+    pos.playerB = playerB;
+    U64 mask = playerA | playerB;
+    for (int c = 0; c < COLS; c++) {
+        pos.heights[c] = column_height_from_mask(mask, c);
+    }
+
+    int* best = find_best_move(&pos, moveCount, player);
+    if (!best || best[1] == -1) {
+        if (best) free(best);
+        return -1;
+    }
+    int col = best[1];
+    free(best);
+    return col;
+}
+
 int* hard_move(char** grid, int* capacities, int counter, char player){
     int* move = malloc(2 * sizeof(int));
     if (!move) {
         return NULL;
     }
 
-    if(counter == 0){
-        int choice = COLS / 2;
-        int row = ROWS - capacities[choice] - 1;
-        grid[row][choice] = player;
-        capacities[choice]++;
-
-        move[0] = row;
-        move[1] = choice;
-        printf("Bot choice: %d (depth 1)\n\n", choice + 1);
-        return move;
-    }
-
     Position pos = create_bitboard(grid, capacities);
-    int* best = find_best_move(&pos, counter, player);
-    if (!best || best[1] == -1) {
+    int best_col = get_hard_move(pos.playerA, pos.playerB, player, counter);
+    int row;
+    if (best_col >= 0 && capacities[best_col] < ROWS) {
+        row = ROWS - capacities[best_col] - 1;
+    } else {
+        int* best = find_best_move(&pos, counter, player);
+        if (!best || best[1] == -1) {
+            free(best);
+            free(move);
+            return easy_move(grid, capacities, player);
+        }
+        row = best[0];
+        best_col = best[1];
         free(best);
-        free(move);
-        return easy_move(grid, capacities, player);
     }
 
-    grid[best[0]][best[1]] = player;
-    capacities[best[1]]++;
+    grid[row][best_col] = player;
+    capacities[best_col]++;
 
-    free(move);
-    return best;
+    move[0] = row;
+    move[1] = best_col;
+    printf("Bot choice: %d\n\n", best_col + 1);
+    return move;
 }
 
 
@@ -398,7 +435,6 @@ int negamax(Position* pos, int counter, int depth, char current, int alpha, int 
 
     for (int idx = 0; idx < moveCount; idx++) {
         int col = cols[idx];
-        int row = pos->heights[col];
 
         moveFound = true;
         play_move(pos, col, current);
