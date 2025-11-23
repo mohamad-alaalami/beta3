@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 199309L
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -5,6 +6,9 @@
 #include <stdint.h>
 #include <pthread.h>
 #include "main.h"
+#include "opening_book.h"
+
+extern OpeningBook BOOK;
 
 static const int move_order[7] = {3, 2, 4, 1, 5, 0, 6};
 static const int MAX_SEARCH_DEPTH = 14; // Upper bound for iterative deepening
@@ -398,7 +402,6 @@ int negamax(Position* pos, int counter, int depth, char current, int alpha, int 
 
     for (int idx = 0; idx < moveCount; idx++) {
         int col = cols[idx];
-        int row = pos->heights[col];
 
         moveFound = true;
         play_move(pos, col, current);
@@ -447,6 +450,19 @@ int* find_best_move(Position* pos, int counter, char player){
         fallback[0] = -1;
         fallback[1] = -1;
         return fallback;
+    }
+
+    if (counter <= 16) {
+        uint64_t key = book_key3(pos->playerA, pos->playerB, player);
+        int bookMove = opening_book_lookup_key(key, &BOOK);
+        if (bookMove >= 0 && bookMove < COLS && pos->heights[bookMove] < ROWS) {
+            int row = ROWS - pos->heights[bookMove] - 1;
+            int* result = malloc(sizeof(int) * 2);
+            result[0] = row;
+            result[1] = bookMove;
+            printf("[BOOK] col %d\n", bookMove + 1);
+            return result;
+        }
     }
 
     start_timer();
