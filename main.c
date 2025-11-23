@@ -1,7 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include "main.h"
+#include "opening_book.h"
+
+OpeningBook BOOK;
 #include "opening_book.h"
 
 OpeningBook BOOK;
@@ -276,8 +280,58 @@ void start_game(){
     free(column_capacity);
 }
 
+static void apply_move_bitboards(U64* A, U64* B, int* heights, int col, char player) {
+    if (col < 0 || col >= COLS) return;
+    if (heights[col] >= ROWS) return;
+    int row = heights[col];
+    int idx = bit_index(row, col);
+    if (player == 'A') {
+        *A |= (1ULL << idx);
+    } else {
+        *B |= (1ULL << idx);
+    }
+    heights[col]++;
+}
+
+void run_opening_book_integration_test(void) {
+    U64 A = 0, B = 0;
+    int heights[COLS] = {0};
+
+    // ply 0: empty, A to move
+    uint64_t k0 = book_key3(A, B, 'A');
+    int m0 = opening_book_lookup_key(k0, &BOOK);
+    printf("PLY 0 | turn=A | key3=%llu | move=%d\n", (unsigned long long)k0, m0);
+
+    // ply 1: A plays 3, B to move
+    apply_move_bitboards(&A, &B, heights, 3, 'A');
+    uint64_t k1 = book_key3(A, B, 'B');
+    int m1 = opening_book_lookup_key(k1, &BOOK);
+    printf("PLY 1 | turn=B | key3=%llu | move=%d\n", (unsigned long long)k1, m1);
+
+    // ply 2: B plays 3, A to move
+    apply_move_bitboards(&A, &B, heights, 3, 'B');
+    uint64_t k2 = book_key3(A, B, 'A');
+    int m2 = opening_book_lookup_key(k2, &BOOK);
+    printf("PLY 2 | turn=A | key3=%llu | move=%d\n", (unsigned long long)k2, m2);
+
+    // ply 3: A plays 2, B to move
+    apply_move_bitboards(&A, &B, heights, 2, 'A');
+    uint64_t k3 = book_key3(A, B, 'B');
+    int m3 = opening_book_lookup_key(k3, &BOOK);
+    printf("PLY 3 | turn=B | key3=%llu | move=%d\n", (unsigned long long)k3, m3);
+}
+
 /*main function that calls the start_game function to run the game*/
-int main(){
-    opening_book_load("opening_book_flat.bin", &BOOK);
+int main(int argc, char** argv){
+    if (!opening_book_load("book_10ply.bin", &BOOK)) {
+        printf("Failed to load opening book.\n");
+        return 1;
+    }
+
+    if (argc > 1 && strcmp(argv[1], "--testbook") == 0) {
+        run_opening_book_integration_test();
+        return 0;
+    }
+
     start_game();
 }

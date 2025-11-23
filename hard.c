@@ -485,6 +485,19 @@ int* find_best_move(Position* pos, int counter, char player){
         return fallback;
     }
 
+    if (counter <= 16) {
+        uint64_t key = book_key3(pos->playerA, pos->playerB, player);
+        int bookMove = opening_book_lookup_key(key, &BOOK);
+        if (bookMove >= 0 && bookMove < COLS && pos->heights[bookMove] < ROWS) {
+            int row = ROWS - pos->heights[bookMove] - 1;
+            int* result = malloc(sizeof(int) * 2);
+            result[0] = row;
+            result[1] = bookMove;
+            printf("[BOOK] col %d\n", bookMove + 1);
+            return result;
+        }
+    }
+
     start_timer();
 
     int maxDepth;
