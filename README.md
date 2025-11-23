@@ -49,7 +49,7 @@ Both players begin with 21 identical pieces, and the first player to achieve a l
 <table align="center" width="600" border="2">
 <tr>
     <td>Name</td>
-    <td>Registration No.</td>
+    <td>AUB Email</td>
 </tr>
 <tr>
     <td>Mohammad Kassira</td>
