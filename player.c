@@ -1,70 +1,41 @@
-<h2 align="center">
-<table align="center">
-<tr>
-<td>Team Beta3</td>
-</tr>
-<tr>
-<td>Connect 4</td>
-</tr>
-</table>
+#include <stdio.h>
+#include <stdlib.h>
+#include "main.h"
 
-</h2>
+/*function that takes as input the column choice of the user if it is a valid choice(in range and an integer) it checks the capacity of the column and places it in the lowest available slot*/
+int* player_move(char** grid, int* capacities, char player){
+    int choice;
 
-<h2><b>Connect 4:</b></h2>
-<p>
-Connect-Four is a tic-tac-toe-like two-player game in which players alternately place pieces on a vertical board 7 columns across and 6 rows high. Each player uses pieces of a particular color, and the object is to be the first to obtain four pieces in a horizontal, vertical, or diagonal line. Because the board is vertical, pieces inserted in a given column always drop to the lowest unoccupied row of that column. As soon as a column contains 6 pieces, it is full and no other piece can be placed in the column.
-</p>
+    int* returnpos = (int*)malloc(2*sizeof(int));
+    while(1){
+        printf("Player %c, please choose a column: ", player);
+        if(scanf("%d", &choice) != 1){
+            fflush(stdout);
+            printf("enter an integer.\n");
+            int c;
+            while ((c = getchar()) != '\n' && c != EOF);
+            continue;
+        }
+        
+        if(choice > 0 && choice <= COLS){
+            if(capacities[choice - 1] < ROWS){
+                int row = ROWS - capacities[choice - 1] - 1;
+                grid[row][choice - 1] = player;
+                capacities[choice - 1]++;
 
-<br>
-<p align="center">
-<img width="243" height="208" alt="download" src="https://github.com/user-attachments/assets/7ea66db9-2fe8-4073-bc23-f8f3a1944929" />
-</p>
-<br>
 
-<p>
-Both players begin with 21 identical pieces, and the first player to achieve a line of four connected pieces wins the game. If all 42 shots are played and no player has places four pieces in a row, the game is drawn.
-</p>
-<br>
+                //returnpos[0]= ROWS-capacities[choice]-1;
+                returnpos[0]=row;
+                returnpos[1]= choice - 1;
+                return returnpos;
+            }
+            else{
+                printf("column is full.\n");
+            }
+        }
 
-<p>
-<h2><b>Our Project:</b></h2>
-<br>
-❖ In this project, we plan to create a terminal-based version of the classic Connect 4 game entirely coded in C.
-<br><br>
-❖ It has two mode.<br>
-    
-1. <b>Multi Player Mode:</b> <i>It would facilitate 2 human players to play the game.</i><br><br>
-![9e6b4de3-c4a5-4399-8429-7f9ca3d9c498](https://github.com/user-attachments/assets/ed5bf376-2225-4b68-b193-f094205e3b13)
-![c795c45f-7605-400f-8c20-44d13ed5c3ae](https://github.com/user-attachments/assets/096a0119-eeb2-4f6e-ab65-e2844f82fea2)
-
-3. <b>Single Player Mode:</b> <i>One player would play against an AI bot with difficulty of his choice.</i><br><br>
-![51dcf6d0-a1c6-453a-aa89-9c9398e865de](https://github.com/user-attachments/assets/eb166048-1839-4ddd-b809-88707267566e)
-<br><br>
-</p>
-
-<br>
-
-<h2><b>Team Beta3:</b></h2>
-<p align="center">Team Member</p>
-<table align="center" width="600" border="2">
-<tr>
-    <td>Name</td>
-    <td>AUB Email</td>
-</tr>
-<tr>
-    <td>Mohammad Kassira</td>
-    <td>msk58@mail.aub.edu</td>
-</tr>
-<tr>
-    <td>Mohamad Al Aalami</td>
-    <td>maa399@mail.aub.edu</td>
-</tr>
-<tr>
-    <td>Hasan Dokmak</td>
-    <td>hmd30@mail.aub.edu</td>
-</tr>
-</table>
-
-<br>
-
-<p align="center"><b>Team Beta3</b></p>
+        else{
+            printf("invalid column.\n");
+        }
+    }
+}

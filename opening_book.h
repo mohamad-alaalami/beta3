@@ -1,41 +1,26 @@
-#include <stdio.h>
-#include <stdlib.h>
+#ifndef OPENING_BOOK_H
+#define OPENING_BOOK_H
+
+#include <stdint.h>
 #include "main.h"
 
-/*function that takes as input the column choice of the user if it is a valid choice(in range and an integer) it checks the capacity of the column and places it in the lowest available slot*/
-int* player_move(char** grid, int* capacities, char player){
-    int choice;
+typedef struct {
+    uint32_t size;        // number of buckets (power of 2)
+    uint32_t index_mask;  // size - 1
+    uint8_t  key_bytes;   // bytes per key (should be 8)
+    uint8_t  val_bytes;   // bytes per value (should be 1)
+    uint16_t _padding;
 
-    int* returnpos = (int*)malloc(2*sizeof(int));
-    while(1){
-        printf("Player %c, please choose a column: ", player);
-        if(scanf("%d", &choice) != 1){
-            fflush(stdout);
-            printf("enter an integer.\n");
-            int c;
-            while ((c = getchar()) != '\n' && c != EOF);
-            continue;
-        }
-        
-        if(choice > 0 && choice <= COLS){
-            if(capacities[choice - 1] < ROWS){
-                int row = ROWS - capacities[choice - 1] - 1;
-                grid[row][choice - 1] = player;
-                capacities[choice - 1]++;
+    uint64_t* keys;       // array[size] of full 64-bit key3 values
+    uint8_t*  values;     // array[size] of best moves (255 = empty)
+} OpeningBook;
 
+uint64_t book_key3(U64 playerA, U64 playerB, char playerToMove);
 
-                //returnpos[0]= ROWS-capacities[choice]-1;
-                returnpos[0]=row;
-                returnpos[1]= choice - 1;
-                return returnpos;
-            }
-            else{
-                printf("column is full.\n");
-            }
-        }
+int opening_book_lookup_key(uint64_t key, const OpeningBook* book);
+int opening_book_load(const char* filename, OpeningBook* book);
+void opening_book_free(OpeningBook* book);
+int opening_book_best_move(U64 playerA, U64 playerB, char playerToMove,
+                           int moveCount, const OpeningBook* book);
 
-        else{
-            printf("invalid column.\n");
-        }
-    }
-}
+#endif
