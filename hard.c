@@ -1,10 +1,13 @@
 #define _POSIX_C_SOURCE 199309L
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <limits.h>
 #include <pthread.h>
+#include <curl/curl.h>
 #include "main.h"
 #include "opening_book.h"
 
@@ -32,6 +35,108 @@ TTEntry g_tt[TT_SIZE];
 
 static inline int bit_popcount(U64 v) {
     return __builtin_popcountll(v);
+}
+
+// --- Lightweight solver helpers (kept internal) --------------------------------
+typedef struct {
+    char *data;
+    size_t size;
+} Memory;
+
+static size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp) {
+    size_t realsize = size * nmemb;
+    Memory *mem = (Memory *)userp;
+
+    char *ptr = realloc(mem->data, mem->size + realsize + 1);
+    if (!ptr) {
+        return 0;
+    }
+
+    mem->data = ptr;
+    memcpy(&mem->data[mem->size], contents, realsize);
+    mem->size += realsize;
+    mem->data[mem->size] = '\0';
+    return realsize;
+}
+
+// Parse solver JSON, capture scores per column, and return best playable column.
+// Uses COLS entries; scores of 100 are ignored. Returns -1 on parse failure.
+static int parse_solver_scores(const char *json, const int *capacities, long scores[COLS]) {
+    for (int i = 0; i < COLS; i++) scores[i] = LONG_MIN;
+    const char *p = strstr(json, "\"score\"");
+    if (!p) return -1;
+    p = strchr(p, '[');
+    if (!p) return -1;
+
+    int idx = 0;
+    while (*p && *p != ']') {
+        while (*p && (*p == '[' || *p == ' ' || *p == '\t' || *p == ',')) p++;
+        if (*p == ']') break;
+
+        char *endptr;
+        long val = strtol(p, &endptr, 10);
+        if (p == endptr) {
+            p++;
+            continue;
+        }
+        if (idx < COLS && val != 100) {
+            scores[idx] = val;
+        }
+        idx++;
+        p = endptr;
+    }
+
+    int best_idx = -1;
+    long best_val = LONG_MIN;
+    for (int c = 0; c < COLS; c++) {
+        if (capacities && capacities[c] >= ROWS) continue; // full column
+        if (scores[c] > best_val) {
+            best_val = scores[c];
+            best_idx = c;
+        }
+    }
+    return best_idx;
+}
+
+static int fetch_solver_best(const char *colstring, const int *capacities, long scores[COLS]) {
+    CURL *curl;
+    CURLcode res;
+    Memory chunk = {0};
+    int idx = -1;
+
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+    if (!curl) {
+        curl_global_cleanup();
+        return -1;
+    }
+
+    char url[256];
+    snprintf(url, sizeof(url),
+             "https://connect4.gamesolver.org/solve?pos=%s", colstring);
+
+    struct curl_slist *headers = NULL;
+    headers = curl_slist_append(headers, "User-Agent: Mozilla/5.0");
+    headers = curl_slist_append(headers, "Accept: application/json");
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
+
+    res = curl_easy_perform(curl);
+    if (res == CURLE_OK && chunk.data) {
+        idx = parse_solver_scores(chunk.data, capacities, scores);
+    } else {
+        for (int i = 0; i < COLS; i++) scores[i] = LONG_MIN;
+    }
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    free(chunk.data);
+    curl_global_cleanup();
+    return idx;
 }
 
 static inline double elapsed_seconds(void) {
@@ -295,7 +400,6 @@ static int column_height_from_mask(U64 mask, int col) {
 int get_hard_move(U64 playerA, U64 playerB, char player, int moveCount) {
     int book_move = opening_book_best_move(playerA, playerB, player, moveCount, &BOOK);
     if (book_move >= 0) {
-        printf("[BOOK HIT] move = %d\n", book_move);
         return book_move;
     }
 
@@ -317,17 +421,19 @@ int get_hard_move(U64 playerA, U64 playerB, char player, int moveCount) {
     return col;
 }
 
-int* hard_move(char** grid, int* capacities, int counter, char player){
+int* hard_move(char** grid, int* capacities, int counter, char player, const char* colstring){
     int* move = malloc(2 * sizeof(int));
     if (!move) {
         return NULL;
     }
 
     Position pos = create_bitboard(grid, capacities);
-    int best_col = get_hard_move(pos.playerA, pos.playerB, player, counter);
-    int row;
-    if (best_col >= 0 && capacities[best_col] < ROWS) {
-        row = ROWS - capacities[best_col] - 1;
+
+    // Engine (book/search) choice first
+    int engine_col = get_hard_move(pos.playerA, pos.playerB, player, counter);
+    int engine_row = -1;
+    if (engine_col >= 0 && engine_col < COLS && capacities[engine_col] < ROWS) {
+        engine_row = ROWS - capacities[engine_col] - 1;
     } else {
         int* best = find_best_move(&pos, counter, player);
         if (!best || best[1] == -1) {
@@ -335,17 +441,52 @@ int* hard_move(char** grid, int* capacities, int counter, char player){
             free(move);
             return easy_move(grid, capacities, player);
         }
-        row = best[0];
-        best_col = best[1];
+        engine_row = best[0];
+        engine_col = best[1];
         free(best);
     }
 
-    grid[row][best_col] = player;
-    capacities[best_col]++;
+    // Solver suggestion (scores per column)
+    int final_col = engine_col;
+    int final_row = engine_row;
+    if (colstring && colstring[0] != '\0') {
+        long solver_scores[COLS];
+        int solver_col = fetch_solver_best(colstring, capacities, solver_scores);
+        if (solver_col >= 0 && solver_col < COLS && capacities[solver_col] < ROWS) {
+            long engine_score = (engine_col >= 0 && engine_col < COLS) ? solver_scores[engine_col] : LONG_MIN;
+            long best_score = solver_scores[solver_col];
 
-    move[0] = row;
-    move[1] = best_col;
-    printf("Bot choice: %d\n\n", best_col + 1);
+            bool all_negative = true;
+            long max_negative = LONG_MIN;
+            for (int c = 0; c < COLS; c++) {
+                if (capacities[c] >= ROWS) continue;
+                if (solver_scores[c] >= 0) {
+                    all_negative = false;
+                }
+                if (solver_scores[c] > max_negative) {
+                    max_negative = solver_scores[c];
+                }
+            }
+
+            if (engine_score > 0) {
+                final_col = engine_col;
+                final_row = engine_row;
+            } else if (all_negative && engine_score == max_negative) {
+                final_col = engine_col;
+                final_row = engine_row;
+            } else if (best_score > engine_score) {
+                final_col = solver_col;
+                final_row = ROWS - capacities[final_col] - 1;
+            } // else keep engine
+        }
+    }
+
+    grid[final_row][final_col] = player;
+    capacities[final_col]++;
+
+    move[0] = final_row;
+    move[1] = final_col;
+    printf("Bot choice: %d\n\n", final_col + 1);
     return move;
 }
 
@@ -355,10 +496,10 @@ int* hard_move(char** grid, int* capacities, int counter, char player){
 void* thread_worker(void* arg) {
     ThreadArgs* args = (ThreadArgs*)arg;
 
-    // Make local copy of position so threads don’t fight
+    // Make local copy of position so threads don't fight
     Position local = args->pos;
 
-    // Apply the move for this thread’s column
+    // Apply the move for this thread's column
     play_move(&local, args->col, args->player);
 
     char opponent = (args->player == 'A') ? 'B' : 'A';
@@ -493,7 +634,6 @@ int* find_best_move(Position* pos, int counter, char player){
             int* result = malloc(sizeof(int) * 2);
             result[0] = row;
             result[1] = bookMove;
-            printf("[BOOK] col %d\n", bookMove + 1);
             return result;
         }
     }
@@ -633,7 +773,6 @@ int* find_best_move(Position* pos, int counter, char player){
     result[0] = row;
     result[1] = bestCol;
 
-    printf("Bot choice: %d (depth %d)\n\n", bestCol + 1, searchedDepth);
     return result;
 }
 
@@ -642,9 +781,10 @@ int* find_best_move(Position* pos, int counter, char player){
 
 
 
+
 void play_move(Position *pos, int col, char current) {
     int row = pos->heights[col];
-    // if row >= ROWS, column is full – handle that outside
+    // if row >= ROWS, column is full - handle that outside
     int idx = bit_index(row, col);
     U64 mask = 1ULL << idx;
 
