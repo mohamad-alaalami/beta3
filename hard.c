@@ -17,7 +17,7 @@ static const int move_order[7] = {3, 2, 4, 1, 5, 0, 6};
 static const int MAX_SEARCH_DEPTH = 14; // Upper bound for iterative deepening
 static const int WIN_SCORE = 100000;
 static const int INF_SCORE = 200000;
-static const double MOVE_TIME_LIMIT = 15.0;
+static const double MOVE_TIME_LIMIT = 8.0;
 
 static struct timespec g_move_start;
 static volatile bool g_time_over = false;
